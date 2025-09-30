@@ -1,21 +1,22 @@
 import React, { useEffect, useState } from 'react'
 import CurveKit from './components/CurveKit'
 import type { CurveState, NodeModel } from './lib/types'
+import { buildParamLUT, pointAtTime, timeAtPoint } from './lib/geometry/ParamMap'
 
 const initialCurve: CurveState = {
   controls: [
-    { x: 40, y: 220 },
-    { x: 200, y: 80 },
-    { x: 420, y: 260 },
-    { x: 760, y: 120 },
+    { x: 200, y: 80 },   // top
+    { x: 100, y: 250 },  // left
+    { x: 300, y: 450 },  // right
+    { x: 200, y: 720 },  // bottom
   ],
   tension: 0.5,
 }
 
 const initialNodes: NodeModel[] = [
-  { id: 'a', time: 0.1, label: 'A', icon: 'token-a', color: '#06b6d4' },
-  { id: 'b', time: 0.4, label: 'B', icon: 'token-b', color: '#f59e0b' },
-  { id: 'c', time: 0.7, label: 'C', icon: 'token-c', color: '#ef4444' },
+  { id: 'a', time: 7200, label: 'A', icon: 'token-a', color: '#06b6d4' },   // 2h = 7200s
+  { id: 'b', time: 43200, label: 'B', icon: 'token-b', color: '#f59e0b' },  // 12h = 43200s
+  { id: 'c', time: 64800, label: 'C', icon: 'token-c', color: '#ef4444' },  // 18h = 64800s
 ]
 
 function useIsMobile() {
@@ -46,31 +47,25 @@ export default function App() {
   })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<'timeline' | 'list'>(() => (localStorage.getItem('ck_view') as any) || 'timeline')
-  const [sculptEnabled] = useState<boolean>(() => {
-    // Force sculpt OFF on mobile
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      try { localStorage.setItem('ff_curve_sculpting', '0'); } catch {}
-      return false;
-    }
-    try { return localStorage.getItem('ff_curve_sculpting') !== '0' } catch { return true }
-  })
   const isMobile = useIsMobile()
 
   useEffect(() => { try { localStorage.setItem('ck_curve', JSON.stringify(curve)) } catch {} }, [curve])
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
   useEffect(() => { try { localStorage.setItem('ck_view', view) } catch {} }, [view])
 
-  // Mobile: Use simple draggable circles with 2D freedom
-  const [dragState, setDragState] = React.useState<{ id: string; x: number; y: number } | null>(null);
-  const [nodePositions, setNodePositions] = React.useState<Record<string, { x: number; y: number }>>(() => {
-    const positions: Record<string, { x: number; y: number }> = {};
-    nodes.forEach((n, i) => {
-      positions[n.id] = { x: 200, y: 100 + i * 200 };
-    });
-    return positions;
-  });
+  // Mobile: Simple curve-constrained drag + long-press to sculpt
+  const [dragState, setDragState] = React.useState<{ id: string; time: number; mode: 'slide' | 'sculpt' } | null>(null);
+  const [longPressTimer, setLongPressTimer] = React.useState<number | null>(null);
+  const [sculptingControl, setSculptingControl] = React.useState<number | null>(null);
 
   if (isMobile) {
+    const lut = buildParamLUT(curve);
+    
+    // Build curve path from segments
+    const curvePath = lut.segments
+      .map((c, i) => `${i === 0 ? `M ${c.p0.x},${c.p0.y}` : ""} C ${c.p1.x},${c.p1.y} ${c.p2.x},${c.p2.y} ${c.p3.x},${c.p3.y}`)
+      .join(" ");
+    
     return (
       <div style={{ 
         position: 'fixed',
@@ -85,26 +80,75 @@ export default function App() {
           viewBox="0 0 400 800"
           style={{ touchAction: 'none' }}
         >
-          {/* Draw nodes with 2D freedom */}
+          {/* Draw the serpentine curve */}
+          <path
+            d={curvePath}
+            fill="none"
+            stroke="#d1d5db"
+            strokeWidth={4}
+            strokeLinecap="round"
+          />
+          
+          {/* Curve control points (for sculpting) */}
+          {curve.controls.map((ctrl, i) => (
+            <circle
+              key={`ctrl-${i}`}
+              cx={ctrl.x}
+              cy={ctrl.y}
+              r={sculptingControl === i ? 20 : 12}
+              fill={sculptingControl === i ? '#06b6d4' : '#94a3b8'}
+              stroke="white"
+              strokeWidth={2}
+              opacity={0.7}
+              style={{ cursor: 'pointer' }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                setSculptingControl(i);
+              }}
+              onTouchMove={(e) => {
+                e.preventDefault();
+                if (sculptingControl !== i) return;
+                const touch = e.touches[0];
+                const svg = e.currentTarget.ownerSVGElement;
+                if (!svg) return;
+                const pt = svg.createSVGPoint();
+                pt.x = touch.clientX;
+                pt.y = touch.clientY;
+                const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                
+                setCurve(prev => ({
+                  ...prev,
+                  controls: prev.controls.map((c, idx) => 
+                    idx === i ? { x: svgP.x, y: svgP.y } : c
+                  )
+                }));
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                setSculptingControl(null);
+              }}
+            />
+          ))}
+          
+          {/* Draw nodes on the curve (slide along path) */}
           {nodes.map((n) => {
-            const pos = nodePositions[n.id] || { x: 200, y: 200 };
             const isDragging = dragState?.id === n.id;
-            const x = isDragging ? dragState.x : pos.x;
-            const y = isDragging ? dragState.y : pos.y;
+            const time = isDragging ? dragState.time : n.time;
+            const pos = pointAtTime(lut, time);
             
             return (
               <g key={n.id}>
                 <circle
-                  cx={x}
-                  cy={y}
-                  r={40}
-                  fill={isDragging ? '#3b82f6' : '#ef4444'}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={45}
+                  fill={isDragging ? '#3b82f6' : n.color}
                   stroke="white"
                   strokeWidth={4}
                   style={{ cursor: 'pointer' }}
                   onTouchStart={(e) => {
                     e.preventDefault();
-                    setDragState({ id: n.id, x: pos.x, y: pos.y });
+                    setDragState({ id: n.id, time: n.time, mode: 'slide' });
                   }}
                   onTouchMove={(e) => {
                     e.preventDefault();
@@ -116,27 +160,24 @@ export default function App() {
                     pt.x = touch.clientX;
                     pt.y = touch.clientY;
                     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-                    setDragState({ id: n.id, x: svgP.x, y: svgP.y });
+                    
+                    // Project to curve and get time
+                    const newTime = timeAtPoint(lut, svgP);
+                    setDragState({ id: n.id, time: newTime, mode: 'slide' });
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault();
                     if (dragState && dragState.id === n.id) {
-                      setNodePositions(prev => ({
-                        ...prev,
-                        [n.id]: { x: dragState.x, y: dragState.y }
-                      }));
-                      // Convert Y position back to time for storage
-                      const newTime = Math.max(0, Math.min(86400, ((dragState.y - 100) / 600) * 86400));
                       setNodes(ns => ns.map(node => 
-                        node.id === n.id ? { ...node, time: newTime } : node
+                        node.id === n.id ? { ...node, time: dragState.time } : node
                       ));
                       setDragState(null);
                     }
                   }}
                 />
                 <text
-                  x={x}
-                  y={y + 8}
+                  x={pos.x}
+                  y={pos.y + 8}
                   textAnchor="middle"
                   fill="white"
                   fontSize={24}
@@ -148,8 +189,12 @@ export default function App() {
               </g>
             );
           })}
-          <text x={20} y={40} fill="black" fontSize={20}>
-            Drag nodes ANYWHERE! 🎯
+          
+          <text x={20} y={40} fill="black" fontSize={18}>
+            Drag nodes along curve 🎯
+          </text>
+          <text x={20} y={770} fill="#94a3b8" fontSize={14}>
+            Drag gray dots to reshape curve
           </text>
         </svg>
       </div>
@@ -173,7 +218,6 @@ export default function App() {
           })}>
             {view === 'timeline' ? 'Switch to List' : 'Switch to Timeline'}
           </button>
-          <span style={{ opacity: 0.6 }}>| sculpt: {sculptEnabled ? 'on' : 'off'}</span>
         </div>
       )}
       
@@ -181,7 +225,7 @@ export default function App() {
         <CurveKit
           curve={curve}
           nodes={nodes}
-          mode={isMobile ? 'view' : (sculptEnabled ? 'sculpt' : 'view')}
+          mode="view"
           onCurveChange={setCurve}
           onNodeChange={(id, t) => setNodes(ns => ns.map(n => n.id === id ? { ...n, time: t } : n))}
           onNodeTap={(id) => setSelectedId(id)}
