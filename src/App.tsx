@@ -77,7 +77,7 @@ export default function App() {
           width="100%" 
           height="100%" 
           viewBox="0 0 400 800"
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
           onTouchStart={() => {
             // Tap background to exit slide mode
             if (slideMode) {
