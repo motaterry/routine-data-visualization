@@ -1,23 +1,32 @@
 type Pt = { x: number; y: number };
 
-export function quadControl(prevPrev: Pt, prev: Pt, curr: Pt, softness = 0.4, maxPx = 50): Pt {
+/**
+ * Calculate bezier arm (control point) for smooth quadratic curves.
+ * The arm extends from 'prev' node along the tangent defined by prevPrev → curr.
+ * Arm length is proportional to distance between prev and curr.
+ */
+export function calculateBezierArm(prevPrev: Pt, prev: Pt, curr: Pt, softness = 0.5): Pt {
+  // Tangent vector from prevPrev through to curr
   const tx = curr.x - prevPrev.x;
   const ty = curr.y - prevPrev.y;
   const tLen = Math.hypot(tx, ty) || 1;
 
-  // Use the actual distance between prev and curr for handle scaling
+  // Distance between prev and curr determines arm length
   const segLen = Math.hypot(curr.x - prev.x, curr.y - prev.y);
   
-  // Handle grows with distance - no hard cap, just scale by softness
-  // This makes distant nodes have longer, flowing handles
-  const scale = segLen * softness;
+  // Arm grows proportionally with distance - closer nodes = shorter arms
+  const armLength = segLen * softness;
 
-  const nx = (tx / tLen) * scale;
-  const ny = (ty / tLen) * scale;
+  const nx = (tx / tLen) * armLength;
+  const ny = (ty / tLen) * armLength;
 
   return { x: prev.x + nx, y: prev.y + ny };
 }
 
+/**
+ * Build smooth path using tangent-aligned bezier arms.
+ * Arm length adapts to node spacing for consistent smoothness.
+ */
 export function toSmoothQPath(points: Pt[], softness = 0.5): string {
   if (points.length < 2) return "";
   let d = `M ${points[0].x} ${points[0].y}`;
@@ -25,13 +34,13 @@ export function toSmoothQPath(points: Pt[], softness = 0.5): string {
     const curr = points[i];
     const prev = points[i - 1];
     if (i === 1) {
-      // First segment: use simple control point between prev and curr
-      const cp = { x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2 };
-      d += ` Q ${cp.x} ${cp.y}, ${curr.x} ${curr.y}`;
+      // First segment: simple midpoint arm
+      const arm = { x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2 };
+      d += ` Q ${arm.x} ${arm.y}, ${curr.x} ${curr.y}`;
     } else {
       const prevPrev = points[i - 2];
-      const cp = quadControl(prevPrev, prev, curr, softness);
-      d += ` Q ${cp.x} ${cp.y}, ${curr.x} ${curr.y}`;
+      const arm = calculateBezierArm(prevPrev, prev, curr, softness);
+      d += ` Q ${arm.x} ${arm.y}, ${curr.x} ${curr.y}`;
     }
   }
   return d;
