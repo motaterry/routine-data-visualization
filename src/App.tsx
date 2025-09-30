@@ -70,24 +70,6 @@ export default function App() {
     return positions;
   });
 
-  // Build the curve path (outside of conditional)
-  const curvePath = React.useMemo(() => {
-    const segments = [];
-    const controls = curve.controls;
-    for (let i = 0; i < controls.length - 1; i++) {
-      const c0 = controls[i];
-      const c1 = controls[i + 1];
-      if (i === 0) {
-        segments.push(`M ${c0.x},${c0.y}`);
-      }
-      // Simple quadratic curve between points
-      const cpx = (c0.x + c1.x) / 2;
-      const cpy = (c0.y + c1.y) / 2 + 50;
-      segments.push(`Q ${cpx},${cpy} ${c1.x},${c1.y}`);
-    }
-    return segments.join(' ');
-  }, [curve]);
-
   if (isMobile) {
     return (
       <div style={{ 
