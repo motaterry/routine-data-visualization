@@ -86,3 +86,39 @@ export function toSmoothCPath(points: Pt[], softness = 0.4): string {
   
   return d;
 }
+
+/**
+ * Sample the smooth curve path to build an arc-length lookup table.
+ * Used for sliding nodes along the actual visual curve (not the cubic approximation).
+ */
+export function sampleSmoothPath(points: Pt[], softness = 0.4, samples = 200): { points: Pt[]; lengths: number[] } {
+  const path = toSmoothCPath(points, softness);
+  
+  // For now, return a simple approximation using the node positions
+  // TODO: Proper cubic bezier sampling for accurate arc-length
+  const sampledPoints: Pt[] = [];
+  const lengths: number[] = [0];
+  
+  // Simple linear interpolation for now
+  for (let i = 0; i < samples; i++) {
+    const t = i / (samples - 1);
+    const idx = t * (points.length - 1);
+    const i0 = Math.floor(idx);
+    const i1 = Math.min(i0 + 1, points.length - 1);
+    const w = idx - i0;
+    
+    const p = {
+      x: points[i0].x * (1 - w) + points[i1].x * w,
+      y: points[i0].y * (1 - w) + points[i1].y * w
+    };
+    sampledPoints.push(p);
+    
+    if (i > 0) {
+      const prev = sampledPoints[i - 1];
+      const dist = Math.hypot(p.x - prev.x, p.y - prev.y);
+      lengths.push(lengths[i - 1] + dist);
+    }
+  }
+  
+  return { points: sampledPoints, lengths };
+}

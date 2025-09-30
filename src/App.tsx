@@ -135,6 +135,13 @@ export default function App() {
                     e.stopPropagation();
                     e.preventDefault();
                     
+                    // Don't allow slide mode for wake/sleep - they're anchored
+                    const isAnchor = n.id === 'wake' || n.id === 'sleep';
+                    if (isAnchor) {
+                      setDraggingNode(n.id);
+                      return; // Can sculpt but not slide
+                    }
+                    
                     // Start long-press timer for slide mode
                     const timer = setTimeout(() => {
                       setSlideMode(n.id);
