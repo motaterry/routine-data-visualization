@@ -2,7 +2,7 @@ import type { CurveControlPoint, CurveState, Vec2, Cubic, LUT, TimeSec } from ".
 import { add, mul, sub, cubicPoint } from "./Bezier";
 import { buildLUT, accumulateLengths, projectPointToCubic } from "./Bezier";
 
-/** Convert anchor controls to cubic segments via Catmull–Rom → Bézier. */
+/** Convert anchor controls to cubic segments via adaptive Catmull–Rom → Bézier. */
 export function controlsToSegments(controls: CurveControlPoint[], tension: number): Cubic[] {
   const pts = controls.map(p => ({ x: p.x, y: p.y }));
   if (pts.length < 2) return [];
@@ -10,8 +10,8 @@ export function controlsToSegments(controls: CurveControlPoint[], tension: numbe
   const P: Vec2[] = [pts[0], ...pts, pts[pts.length - 1]];
   // Cap tension to keep curves tame
   const tight = clampRange(tension, 0.15, 0.85);
-  const s = (1 - clamp01(tight)) / 6; // 0..1 → 1/6..0
   const segs: Cubic[] = [];
+  
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = P[i];
     const p1 = P[i + 1];
@@ -19,8 +19,42 @@ export function controlsToSegments(controls: CurveControlPoint[], tension: numbe
     const p3 = P[i + 3];
     const b0 = p1;
     const b3 = p2;
-    const b1 = add(p1, mul(sub(p2, p0), s));
-    const b2 = sub(p2, mul(sub(p3, p1), s));
+    
+    // Adaptive tension based on segment distance and angle
+    const d1 = Math.hypot(p2.x - p1.x, p2.y - p1.y); // Current segment length
+    const d0 = Math.hypot(p1.x - p0.x, p1.y - p0.y); // Previous segment
+    const d2 = Math.hypot(p3.x - p2.x, p3.y - p2.y); // Next segment
+    
+    // Calculate angle change at each endpoint
+    const v01 = { x: p1.x - p0.x, y: p1.y - p0.y };
+    const v12 = { x: p2.x - p1.x, y: p2.y - p1.y };
+    const v23 = { x: p3.x - p2.x, y: p3.y - p2.y };
+    
+    // Normalize vectors
+    const len01 = Math.hypot(v01.x, v01.y) || 1;
+    const len12 = Math.hypot(v12.x, v12.y) || 1;
+    const len23 = Math.hypot(v23.x, v23.y) || 1;
+    
+    const n01 = { x: v01.x / len01, y: v01.y / len01 };
+    const n12 = { x: v12.x / len12, y: v12.y / len12 };
+    const n23 = { x: v23.x / len23, y: v23.y / len23 };
+    
+    // Dot products to measure smoothness
+    const dot1 = n01.x * n12.x + n01.y * n12.y; // -1 to 1
+    const dot2 = n12.x * n23.x + n12.y * n23.y;
+    
+    // Adaptive strength: tighter on sharp turns, looser on smooth curves
+    const sharpness1 = 1 - Math.abs(dot1); // 0 = smooth, 1 = sharp turn
+    const sharpness2 = 1 - Math.abs(dot2);
+    
+    // Scale handle length based on segment length and smoothness
+    const scale1 = (0.2 + 0.3 * (1 - sharpness1)) * Math.min(d0, d1) / (d0 + d1 + 1);
+    const scale2 = (0.2 + 0.3 * (1 - sharpness2)) * Math.min(d1, d2) / (d1 + d2 + 1);
+    
+    const s = (1 - clamp01(tight)) / 6;
+    const b1 = add(p1, mul(sub(p2, p0), s * scale1));
+    const b2 = sub(p2, mul(sub(p3, p1), s * scale2));
+    
     segs.push({ p0: b0, p1: b1, p2: b2, p3: b3 });
   }
   return segs;
