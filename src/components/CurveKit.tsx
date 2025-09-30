@@ -147,6 +147,7 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
   }, [lut]);
 
   const [nowTime, setNowTime] = useState<number>(() => nowSec());
+  const [debugInfo, setDebugInfo] = useState<string>('');
   useEffect(() => {
     // light refresh of the now marker every 30s (0 animations if reduced motion)
     const id = setInterval(() => setNowTime(nowSec()), 30_000);
@@ -170,13 +171,13 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
       if (el) {
         const dx = pos.x - base.x;
         const dy = pos.y - base.y;
-        console.log('Applying transform:', `translate(${dx}px, ${dy}px) scale(1.2)`);
+        setDebugInfo(`DRAG: node=${s.id} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} pos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)})`);
         el.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
         el.style.willChange = 'transform';
         el.style.opacity = '0.8';
         lastTimeById.current.set(s.id, tSec);
       } else {
-        console.log('ERROR: No element found for node:', s.id);
+        setDebugInfo(`ERROR: No element for node ${s.id}`);
       }
 
       // throttle onNodeChange to ~60Hz
@@ -432,7 +433,10 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
               style={{ transformBox: 'fill-box', transformOrigin: 'center', willChange: 'transform' }}
               onTouchStart={(e) => {
                 e.preventDefault();
-                if (readOnly || mode !== 'view') return;
+                if (readOnly || mode !== 'view') {
+                  setDebugInfo(`BLOCKED: mode=${mode}`);
+                  return;
+                }
                 
                 const touch = e.touches[0];
                 const s = drag.current;
@@ -441,6 +445,8 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
                 s.pendingClientXY = { x: touch.clientX, y: touch.clientY };
                 s.lastEmitTs = 0;
                 s.basePos = pointAtTime(lut, n.time);
+                
+                setDebugInfo(`START: node=${n.id} touch=(${touch.clientX},${touch.clientY})`);
                 
                 // Visual feedback
                 const el = nodeRefs.current[s.id];
@@ -520,8 +526,18 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
             </g>
           ))}
 
+        {/* Debug Info */}
+        {debugInfo && (
+          <g transform="translate(20, 30)">
+            <rect x={-10} y={-20} width={350} height={30} rx={4} className="fill-black/80" />
+            <text x={0} y={0} className="fill-green-400 text-xs font-mono">
+              {debugInfo}
+            </text>
+          </g>
+        )}
+
         {/* Coachmark */}
-        {coachmarkVisible && (
+        {coachmarkVisible && !debugInfo && (
           <g transform={`translate(${typeof window !== 'undefined' ? 16 : 16}, ${typeof window !== 'undefined' ? 20 : 20})`}>
             <rect x={-8} y={-16} width={isMobile ? 200 : 170} height={isMobile ? 32 : 28} rx={6} className="fill-black/70" />
             <text x={0} y={0} className={`fill-white ${isMobile ? 'text-sm' : 'text-xs'}`}>

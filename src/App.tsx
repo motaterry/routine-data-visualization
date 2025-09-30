@@ -60,6 +60,118 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
   useEffect(() => { try { localStorage.setItem('ck_view', view) } catch {} }, [view])
 
+  // Mobile: Use simple draggable circles on the curve
+  const [dragState, setDragState] = React.useState<{ id: string; time: number } | null>(null);
+
+  // Build the curve path (outside of conditional)
+  const curvePath = React.useMemo(() => {
+    const segments = [];
+    const controls = curve.controls;
+    for (let i = 0; i < controls.length - 1; i++) {
+      const c0 = controls[i];
+      const c1 = controls[i + 1];
+      if (i === 0) {
+        segments.push(`M ${c0.x},${c0.y}`);
+      }
+      // Simple quadratic curve between points
+      const cpx = (c0.x + c1.x) / 2;
+      const cpy = (c0.y + c1.y) / 2 + 50;
+      segments.push(`Q ${cpx},${cpy} ${c1.x},${c1.y}`);
+    }
+    return segments.join(' ');
+  }, [curve]);
+
+  if (isMobile) {
+    return (
+      <div style={{ 
+        position: 'fixed',
+        inset: 0,
+        background: 'white',
+        touchAction: 'none',
+        overflow: 'hidden'
+      }}>
+        <svg 
+          width="100%" 
+          height="100%" 
+          viewBox="0 0 400 800"
+          style={{ touchAction: 'none' }}
+        >
+          {/* Draw the curve */}
+          <path
+            d={curvePath}
+            fill="none"
+            stroke="#666"
+            strokeWidth={4}
+            strokeLinecap="round"
+          />
+          
+          {/* Draw nodes on the curve */}
+          {nodes.map((n) => {
+            // Simple linear interpolation along Y axis for now
+            const baseY = 100 + (n.time / 86400) * 600;
+            const isDragging = dragState?.id === n.id;
+            const y = isDragging ? 100 + (dragState.time / 86400) * 600 : baseY;
+            
+            return (
+              <g key={n.id}>
+                <circle
+                  cx={200}
+                  cy={y}
+                  r={40}
+                  fill={isDragging ? '#3b82f6' : '#ef4444'}
+                  stroke="white"
+                  strokeWidth={4}
+                  style={{ cursor: 'pointer' }}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    setDragState({ id: n.id, time: n.time });
+                  }}
+                  onTouchMove={(e) => {
+                    e.preventDefault();
+                    if (!dragState || dragState.id !== n.id) return;
+                    const touch = e.touches[0];
+                    const svg = e.currentTarget.ownerSVGElement;
+                    if (!svg) return;
+                    const pt = svg.createSVGPoint();
+                    pt.x = touch.clientX;
+                    pt.y = touch.clientY;
+                    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                    // Convert Y position to time (0-86400 seconds)
+                    const newTime = Math.max(0, Math.min(86400, ((svgP.y - 100) / 600) * 86400));
+                    setDragState({ id: n.id, time: newTime });
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    if (dragState && dragState.id === n.id) {
+                      setNodes(ns => ns.map(node => 
+                        node.id === n.id ? { ...node, time: dragState.time } : node
+                      ));
+                      setDragState(null);
+                    }
+                  }}
+                />
+                <text
+                  x={200}
+                  y={y + 8}
+                  textAnchor="middle"
+                  fill="white"
+                  fontSize={24}
+                  fontWeight="bold"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {n.label}
+                </text>
+              </g>
+            );
+          })}
+          <text x={20} y={40} fill="black" fontSize={20}>
+            Drag nodes up/down! 🎯
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
   return (
     <div style={{ 
       padding: isMobile ? 0 : 24,
