@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import CurveKit from './components/CurveKit'
 import type { CurveState, NodeModel } from './lib/types'
 import { buildParamLUT, pointAtTime, timeAtPoint } from './lib/geometry/ParamMap'
+import { toSmoothQPath } from './lib/geometry/SmoothPath'
 
 // Nodes ARE the curve control points!
 const initialNodes: NodeModel[] = [
@@ -45,7 +46,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = React.useState<string | null>(null);
   const [slideMode, setSlideMode] = React.useState<string | null>(null);
-  const [longPressTimer, setLongPressTimer] = React.useState<NodeJS.Timeout | null>(null);
+  const [longPressTimer, setLongPressTimer] = React.useState<number | null>(null);
   const [slidePendingTime, setSlidePendingTime] = React.useState<number | null>(null);
   
   const isMobile = useIsMobile()
@@ -53,18 +54,16 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
 
   if (isMobile) {
-    // Build curve from node positions
+    // Build smooth quadratic curve from node positions
+    const nodePoints = nodes.map(n => nodePositions[n.id]);
+    const curvePath = toSmoothQPath(nodePoints, 0.45, 60);
+    
+    // For slide mode calculations, still use cubic LUT
     const curve: CurveState = {
-      controls: nodes.map(n => nodePositions[n.id]),
+      controls: nodePoints,
       tension: 0.5
     };
-    
     const lut = buildParamLUT(curve);
-    
-    // Build curve path from segments
-    const curvePath = lut.segments
-      .map((c, i) => `${i === 0 ? `M ${c.p0.x},${c.p0.y}` : ""} C ${c.p1.x},${c.p1.y} ${c.p2.x},${c.p2.y} ${c.p3.x},${c.p3.y}`)
-      .join(" ");
     
     return (
       <div style={{ 
@@ -101,7 +100,7 @@ export default function App() {
             }
           }}
         >
-          {/* Draw the serpentine curve */}
+          {/* Draw the smooth serpentine curve */}
           <path
             d={curvePath}
             fill="none"
@@ -245,7 +244,7 @@ export default function App() {
                 SLIDE MODE: Move along curve
               </text>
               <text x={20} y={52} fill="white" fontSize={14}>
-                Tap background to exit
+                Tap background to save
               </text>
             </g>
           )}
