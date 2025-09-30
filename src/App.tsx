@@ -56,7 +56,7 @@ export default function App() {
   if (isMobile) {
     // Build smooth quadratic curve from node positions
     const nodePoints = nodes.map(n => nodePositions[n.id]);
-    const curvePath = toSmoothQPath(nodePoints, 0.45, 60);
+    const curvePath = toSmoothQPath(nodePoints, 0.6, 100);
     
     // For slide mode calculations, still use cubic LUT
     const curve: CurveState = {
