@@ -81,19 +81,18 @@ export default function App() {
           onTouchStart={() => {
             // Tap background to SAVE and exit slide mode
             if (slideMode && slidePendingTime !== null) {
-              // Save the new time and recalculate position
-              const newY = 100 + (slidePendingTime / 86400) * 600;
-              const nodeIndex = nodes.findIndex(n => n.id === slideMode);
-              const newX = nodeIndex % 2 === 0 ? 150 : 250;
-              
-              setNodePositions(prev => ({
-                ...prev,
-                [slideMode]: { x: newX, y: newY }
-              }));
-              
+              // Save the time - position is already correct from live preview
               setNodes(ns => ns.map(node => 
                 node.id === slideMode ? { ...node, time: slidePendingTime } : node
               ));
+              
+              // Keep the node position where it visually is on the curve
+              // Don't recalculate - it's already at pointAtTime(lut, slidePendingTime)
+              const finalPos = pointAtTime(lut, slidePendingTime);
+              setNodePositions(prev => ({
+                ...prev,
+                [slideMode]: finalPos
+              }));
               
               setSlideMode(null);
               setSlidePendingTime(null);
