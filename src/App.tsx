@@ -60,8 +60,15 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
   useEffect(() => { try { localStorage.setItem('ck_view', view) } catch {} }, [view])
 
-  // Mobile: Use simple draggable circles on the curve
-  const [dragState, setDragState] = React.useState<{ id: string; time: number } | null>(null);
+  // Mobile: Use simple draggable circles with 2D freedom
+  const [dragState, setDragState] = React.useState<{ id: string; x: number; y: number } | null>(null);
+  const [nodePositions, setNodePositions] = React.useState<Record<string, { x: number; y: number }>>(() => {
+    const positions: Record<string, { x: number; y: number }> = {};
+    nodes.forEach((n, i) => {
+      positions[n.id] = { x: 200, y: 100 + i * 200 };
+    });
+    return positions;
+  });
 
   // Build the curve path (outside of conditional)
   const curvePath = React.useMemo(() => {
@@ -96,26 +103,17 @@ export default function App() {
           viewBox="0 0 400 800"
           style={{ touchAction: 'none' }}
         >
-          {/* Draw the curve */}
-          <path
-            d={curvePath}
-            fill="none"
-            stroke="#666"
-            strokeWidth={4}
-            strokeLinecap="round"
-          />
-          
-          {/* Draw nodes on the curve */}
+          {/* Draw nodes with 2D freedom */}
           {nodes.map((n) => {
-            // Simple linear interpolation along Y axis for now
-            const baseY = 100 + (n.time / 86400) * 600;
+            const pos = nodePositions[n.id] || { x: 200, y: 200 };
             const isDragging = dragState?.id === n.id;
-            const y = isDragging ? 100 + (dragState.time / 86400) * 600 : baseY;
+            const x = isDragging ? dragState.x : pos.x;
+            const y = isDragging ? dragState.y : pos.y;
             
             return (
               <g key={n.id}>
                 <circle
-                  cx={200}
+                  cx={x}
                   cy={y}
                   r={40}
                   fill={isDragging ? '#3b82f6' : '#ef4444'}
@@ -124,7 +122,7 @@ export default function App() {
                   style={{ cursor: 'pointer' }}
                   onTouchStart={(e) => {
                     e.preventDefault();
-                    setDragState({ id: n.id, time: n.time });
+                    setDragState({ id: n.id, x: pos.x, y: pos.y });
                   }}
                   onTouchMove={(e) => {
                     e.preventDefault();
@@ -136,22 +134,26 @@ export default function App() {
                     pt.x = touch.clientX;
                     pt.y = touch.clientY;
                     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-                    // Convert Y position to time (0-86400 seconds)
-                    const newTime = Math.max(0, Math.min(86400, ((svgP.y - 100) / 600) * 86400));
-                    setDragState({ id: n.id, time: newTime });
+                    setDragState({ id: n.id, x: svgP.x, y: svgP.y });
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault();
                     if (dragState && dragState.id === n.id) {
+                      setNodePositions(prev => ({
+                        ...prev,
+                        [n.id]: { x: dragState.x, y: dragState.y }
+                      }));
+                      // Convert Y position back to time for storage
+                      const newTime = Math.max(0, Math.min(86400, ((dragState.y - 100) / 600) * 86400));
                       setNodes(ns => ns.map(node => 
-                        node.id === n.id ? { ...node, time: dragState.time } : node
+                        node.id === n.id ? { ...node, time: newTime } : node
                       ));
                       setDragState(null);
                     }
                   }}
                 />
                 <text
-                  x={200}
+                  x={x}
                   y={y + 8}
                   textAnchor="middle"
                   fill="white"
@@ -165,7 +167,7 @@ export default function App() {
             );
           })}
           <text x={20} y={40} fill="black" fontSize={20}>
-            Drag nodes up/down! 🎯
+            Drag nodes ANYWHERE! 🎯
           </text>
         </svg>
       </div>
