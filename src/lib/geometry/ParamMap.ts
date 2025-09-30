@@ -48,8 +48,9 @@ export function controlsToSegments(controls: CurveControlPoint[], tension: numbe
     const sharpness2 = 1 - Math.abs(dot2);
     
     // Scale handle length based on segment length and smoothness
-    const scale1 = (0.2 + 0.3 * (1 - sharpness1)) * Math.min(d0, d1) / (d0 + d1 + 1);
-    const scale2 = (0.2 + 0.3 * (1 - sharpness2)) * Math.min(d1, d2) / (d1 + d2 + 1);
+    // Increased multipliers for smoother, more flowing curves
+    const scale1 = (0.4 + 0.6 * (1 - sharpness1)); // Range: 0.4 to 1.0
+    const scale2 = (0.4 + 0.6 * (1 - sharpness2));
     
     const s = (1 - clamp01(tight)) / 6;
     const b1 = add(p1, mul(sub(p2, p0), s * scale1));
