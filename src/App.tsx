@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import CurveKit from './components/CurveKit'
 import type { CurveState, NodeModel } from './lib/types'
 import { buildParamLUT, pointAtTime, timeAtPoint } from './lib/geometry/ParamMap'
-import { toSmoothQPath } from './lib/geometry/SmoothPath'
+import { toSmoothCPath } from './lib/geometry/SmoothPath'
 
 // Nodes ARE the curve control points!
 const initialNodes: NodeModel[] = [
@@ -56,7 +56,7 @@ export default function App() {
   if (isMobile) {
     // Build smooth quadratic curve from node positions
     const nodePoints = nodes.map(n => nodePositions[n.id]);
-    const curvePath = toSmoothQPath(nodePoints, 0.5);
+    const curvePath = toSmoothCPath(nodePoints, 0.5);
     
     // For slide mode calculations, still use cubic LUT
     const curve: CurveState = {
