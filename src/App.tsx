@@ -100,9 +100,9 @@ export default function App() {
             const isDragging = draggingNode === n.id;
             const isSliding = slideMode === n.id;
             
-            // If in slide mode, calculate position on curve based on time
+            // If in slide mode, always show position on curve based on current time
             let displayPos = pos;
-            if (isSliding && !isDragging) {
+            if (isSliding) {
               displayPos = pointAtTime(lut, n.time);
             }
             
