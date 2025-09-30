@@ -11,7 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["react", "react-dom"],
+    "types": ["react", "react-dom", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "*": ["./*"]

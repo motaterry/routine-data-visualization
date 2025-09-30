@@ -1,26 +1,9 @@
-# Node
 node_modules/
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-store/
-
-# Builds
 dist/
-build/
-.tsbuildinfo
-
-# MacOS
+coverage/
+*.log
 .DS_Store
-
-# Env
-.env
-.env.*
-
-# IDE
-.idea/
 .vscode/
-*.swp
+.idea/
 
 

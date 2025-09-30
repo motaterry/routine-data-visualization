@@ -8,7 +8,9 @@ export function controlsToSegments(controls: CurveControlPoint[], tension: numbe
   if (pts.length < 2) return [];
   // Duplicate endpoints for boundary conditions
   const P: Vec2[] = [pts[0], ...pts, pts[pts.length - 1]];
-  const s = (1 - clamp01(tension)) / 6; // 0..1 → 1/6..0
+  // Cap tension to keep curves tame
+  const tight = clampRange(tension, 0.15, 0.85);
+  const s = (1 - clamp01(tight)) / 6; // 0..1 → 1/6..0
   const segs: Cubic[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = P[i];
@@ -25,6 +27,10 @@ export function controlsToSegments(controls: CurveControlPoint[], tension: numbe
 }
 
 export function clamp01(x: number) { return Math.min(1, Math.max(0, x)); }
+
+function clampRange(x: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, x));
+}
 
 /** Build a global LUT for arc-length mapping over the whole path. */
 export function buildParamLUT(curve: CurveState): LUT {
