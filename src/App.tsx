@@ -53,10 +53,18 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
   useEffect(() => { try { localStorage.setItem('ck_view', view) } catch {} }, [view])
 
-  // Mobile: Simple curve-constrained drag + long-press to sculpt
-  const [dragState, setDragState] = React.useState<{ id: string; time: number; mode: 'slide' | 'sculpt' } | null>(null);
-  const [longPressTimer, setLongPressTimer] = React.useState<number | null>(null);
-  const [sculptingControl, setSculptingControl] = React.useState<number | null>(null);
+  // Mobile: Store node positions in 2D space
+  const [nodePositions, setNodePositions] = React.useState<Record<string, { x: number; y: number }>>(() => {
+    const lut = buildParamLUT(initialCurve);
+    const positions: Record<string, { x: number; y: number }> = {};
+    initialNodes.forEach((n) => {
+      positions[n.id] = pointAtTime(lut, n.time);
+    });
+    return positions;
+  });
+  
+  const [draggingNode, setDraggingNode] = React.useState<string | null>(null);
+  const [draggingControl, setDraggingControl] = React.useState<number | null>(null);
 
   if (isMobile) {
     const lut = buildParamLUT(curve);
@@ -89,25 +97,24 @@ export default function App() {
             strokeLinecap="round"
           />
           
-          {/* Curve control points (for sculpting) */}
+          {/* Curve control points (gray dots) */}
           {curve.controls.map((ctrl, i) => (
             <circle
               key={`ctrl-${i}`}
               cx={ctrl.x}
               cy={ctrl.y}
-              r={sculptingControl === i ? 20 : 12}
-              fill={sculptingControl === i ? '#06b6d4' : '#94a3b8'}
+              r={draggingControl === i ? 20 : 12}
+              fill={draggingControl === i ? '#06b6d4' : '#94a3b8'}
               stroke="white"
               strokeWidth={2}
               opacity={0.7}
-              style={{ cursor: 'pointer' }}
               onTouchStart={(e) => {
                 e.preventDefault();
-                setSculptingControl(i);
+                setDraggingControl(i);
               }}
               onTouchMove={(e) => {
                 e.preventDefault();
-                if (sculptingControl !== i) return;
+                if (draggingControl !== i) return;
                 const touch = e.touches[0];
                 const svg = e.currentTarget.ownerSVGElement;
                 if (!svg) return;
@@ -125,34 +132,33 @@ export default function App() {
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
-                setSculptingControl(null);
+                setDraggingControl(null);
               }}
             />
           ))}
           
-          {/* Draw nodes on the curve (slide along path) */}
+          {/* Colored nodes with 2D freedom (same as gray dots) */}
           {nodes.map((n) => {
-            const isDragging = dragState?.id === n.id;
-            const time = isDragging ? dragState.time : n.time;
-            const pos = pointAtTime(lut, time);
+            const pos = nodePositions[n.id];
+            const isDragging = draggingNode === n.id;
             
             return (
               <g key={n.id}>
                 <circle
                   cx={pos.x}
                   cy={pos.y}
-                  r={45}
-                  fill={isDragging ? '#3b82f6' : n.color}
+                  r={isDragging ? 50 : 45}
+                  fill={n.color}
                   stroke="white"
                   strokeWidth={4}
-                  style={{ cursor: 'pointer' }}
+                  opacity={isDragging ? 0.8 : 1}
                   onTouchStart={(e) => {
                     e.preventDefault();
-                    setDragState({ id: n.id, time: n.time, mode: 'slide' });
+                    setDraggingNode(n.id);
                   }}
                   onTouchMove={(e) => {
                     e.preventDefault();
-                    if (!dragState || dragState.id !== n.id) return;
+                    if (draggingNode !== n.id) return;
                     const touch = e.touches[0];
                     const svg = e.currentTarget.ownerSVGElement;
                     if (!svg) return;
@@ -161,17 +167,21 @@ export default function App() {
                     pt.y = touch.clientY;
                     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
                     
-                    // Project to curve and get time
-                    const newTime = timeAtPoint(lut, svgP);
-                    setDragState({ id: n.id, time: newTime, mode: 'slide' });
+                    setNodePositions(prev => ({
+                      ...prev,
+                      [n.id]: { x: svgP.x, y: svgP.y }
+                    }));
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault();
-                    if (dragState && dragState.id === n.id) {
+                    if (draggingNode === n.id) {
+                      // Convert Y position to time when releasing
+                      const pos = nodePositions[n.id];
+                      const newTime = Math.max(0, Math.min(86400, ((pos.y - 80) / 640) * 86400));
                       setNodes(ns => ns.map(node => 
-                        node.id === n.id ? { ...node, time: dragState.time } : node
+                        node.id === n.id ? { ...node, time: newTime } : node
                       ));
-                      setDragState(null);
+                      setDraggingNode(null);
                     }
                   }}
                 />
@@ -191,10 +201,10 @@ export default function App() {
           })}
           
           <text x={20} y={40} fill="black" fontSize={18}>
-            Drag nodes along curve 🎯
+            Drag ANYTHING - total freedom! 🎯
           </text>
           <text x={20} y={770} fill="#94a3b8" fontSize={14}>
-            Drag gray dots to reshape curve
+            Gray dots = curve shape | Colored = nodes
           </text>
         </svg>
       </div>
