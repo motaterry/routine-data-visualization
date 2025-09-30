@@ -18,6 +18,17 @@ const initialNodes: NodeModel[] = [
   { id: 'c', time: 0.7, label: 'C', icon: 'token-c', color: '#ef4444' },
 ]
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  return isMobile;
+}
+
 export default function App() {
   const [curve, setCurve] = useState<CurveState>(() => {
     try {
@@ -38,25 +49,33 @@ export default function App() {
   const [sculptEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('ff_curve_sculpting') !== '0' } catch { return true }
   })
+  const isMobile = useIsMobile()
 
   useEffect(() => { try { localStorage.setItem('ck_curve', JSON.stringify(curve)) } catch {} }, [curve])
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
   useEffect(() => { try { localStorage.setItem('ck_view', view) } catch {} }, [view])
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 12 }}>CurveKit Demo</h1>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <button onClick={() => setView(v => {
-          const next = v === 'timeline' ? 'list' : 'timeline'
-          // eslint-disable-next-line no-console
-          console.log('telemetry: view_toggle', { next })
-          return next
-        })}>
-          {view === 'timeline' ? 'Switch to List' : 'Switch to Timeline'}
-        </button>
-        <span style={{ opacity: 0.6 }}>| sculpt: {sculptEnabled ? 'on' : 'off'}</span>
-      </div>
+    <div style={{ 
+      padding: isMobile ? 0 : 24,
+      minHeight: isMobile ? '100vh' : 'auto',
+      position: isMobile ? 'relative' : 'static'
+    }}>
+      {!isMobile && <h1 style={{ marginBottom: 12 }}>CurveKit Demo</h1>}
+      {!isMobile && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <button onClick={() => setView(v => {
+            const next = v === 'timeline' ? 'list' : 'timeline'
+            // eslint-disable-next-line no-console
+            console.log('telemetry: view_toggle', { next })
+            return next
+          })}>
+            {view === 'timeline' ? 'Switch to List' : 'Switch to Timeline'}
+          </button>
+          <span style={{ opacity: 0.6 }}>| sculpt: {sculptEnabled ? 'on' : 'off'}</span>
+        </div>
+      )}
+      
       {view === 'timeline' ? (
         <CurveKit
           curve={curve}
@@ -79,7 +98,18 @@ export default function App() {
       )}
 
       {selectedId && (
-        <div style={{ position: 'fixed', right: 16, top: 16, width: 280, background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, boxShadow: '0 6px 24px rgba(0,0,0,0.08)' }}>
+        <div style={{ 
+          position: 'fixed', 
+          right: isMobile ? 8 : 16, 
+          top: isMobile ? 8 : 16, 
+          width: isMobile ? 'calc(100vw - 16px)' : 280, 
+          background: 'white', 
+          border: '1px solid #e5e7eb', 
+          borderRadius: 12, 
+          padding: 12, 
+          boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
+          zIndex: 20
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong>Edit node</strong>
             <button onClick={() => setSelectedId(null)}>✕</button>
@@ -106,5 +136,3 @@ export default function App() {
     </div>
   )
 }
-
-
