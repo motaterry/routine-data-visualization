@@ -168,10 +168,15 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
       
       const el = nodeRefs.current[s.id];
       if (el) {
-        el.style.transform = `translate(${pos.x - base.x}px, ${pos.y - base.y}px) scale(1.2)`;
+        const dx = pos.x - base.x;
+        const dy = pos.y - base.y;
+        console.log('Applying transform:', `translate(${dx}px, ${dy}px) scale(1.2)`);
+        el.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
         el.style.willChange = 'transform';
         el.style.opacity = '0.8';
         lastTimeById.current.set(s.id, tSec);
+      } else {
+        console.log('ERROR: No element found for node:', s.id);
       }
 
       // throttle onNodeChange to ~60Hz
@@ -190,9 +195,12 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
   const onMove = useCallback((e: PointerEvent) => {
     const s = drag.current;
     if (s.pointerId !== e.pointerId) return;
-    console.log('🚀 MOVE event for node:', s.id);
+    console.log('🚀 MOVE event for node:', s.id, 'at', e.clientX, e.clientY);
     s.pendingClientXY = { x: e.clientX, y: e.clientY };
-    if (!s.raf) s.raf = requestAnimationFrame(frame);
+    if (!s.raf) {
+      console.log('Starting rAF for node:', s.id);
+      s.raf = requestAnimationFrame(frame);
+    }
   }, [frame]);
 
   const onUp = useCallback((e: PointerEvent) => {
@@ -422,35 +430,60 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
               ref={el => { nodeRefs.current[n.id] = el; }}
               transform={`translate(${p.x}, ${p.y})`}
               style={{ transformBox: 'fill-box', transformOrigin: 'center', willChange: 'transform' }}
-              onPointerDown={(e) => {
-                if (readOnly || mode !== 'view') {
-                  console.log('BLOCKED: readOnly =', readOnly, 'mode =', mode);
-                  return;
-                }
-                console.log('✅ POINTER DOWN on node:', n.id);
+              onTouchStart={(e) => {
+                e.preventDefault();
+                if (readOnly || mode !== 'view') return;
+                
+                const touch = e.touches[0];
                 const s = drag.current;
                 s.id = n.id;
-                s.pointerId = e.pointerId;
-                s.pendingClientXY = { x: e.clientX, y: e.clientY };
+                s.pointerId = touch.identifier;
+                s.pendingClientXY = { x: touch.clientX, y: touch.clientY };
                 s.lastEmitTs = 0;
                 s.basePos = pointAtTime(lut, n.time);
-
-                // capture + scroll hygiene
-                (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                (e.currentTarget as Element).addEventListener('lostpointercapture', onUp as any, { once: true });
-
-                const svg = svgRef.current;
-                if (svg) svg.style.touchAction = 'none';
-
-                // attach listeners for THIS pointer
-                document.addEventListener('pointermove', onMove as any, { passive: true });
-                document.addEventListener('pointerup', onUp as any);
-                document.addEventListener('pointercancel', onUp as any);
-                // try high-rate input when available
-                (document as any).addEventListener?.('pointerrawupdate', onMove as any, { passive: true });
-
-                // kick the rAF
+                
+                // Visual feedback
+                const el = nodeRefs.current[s.id];
+                if (el) {
+                  el.style.transform = 'scale(1.3)';
+                  el.style.opacity = '0.7';
+                }
+                
                 if (!s.raf) s.raf = requestAnimationFrame(frame);
+              }}
+              onTouchMove={(e) => {
+                e.preventDefault();
+                const s = drag.current;
+                if (!s.id) return;
+                
+                const touch = Array.from(e.touches).find(t => t.identifier === s.pointerId);
+                if (!touch) return;
+                
+                s.pendingClientXY = { x: touch.clientX, y: touch.clientY };
+                if (!s.raf) s.raf = requestAnimationFrame(frame);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                const s = drag.current;
+                if (!s.id) return;
+                
+                if (s.raf) {
+                  cancelAnimationFrame(s.raf);
+                  s.raf = null;
+                }
+                
+                const el = nodeRefs.current[s.id];
+                if (el) {
+                  el.style.transform = '';
+                  el.style.opacity = '';
+                }
+                
+                const tFinal = lastTimeById.current.get(s.id);
+                if (tFinal != null && onNodeChange) {
+                  onNodeChange(s.id, tFinal);
+                }
+                
+                drag.current = { id: null, pointerId: null, raf: null, pendingClientXY: null, lastEmitTs: 0, basePos: null };
               }}
             >
               {/* Larger touch target for mobile - with visual feedback */}
