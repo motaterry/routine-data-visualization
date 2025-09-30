@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import CurveKit from './components/CurveKit'
 import type { CurveState, NodeModel } from './lib/types'
 import { buildParamLUT, pointAtTime, timeAtPoint } from './lib/geometry/ParamMap'
-import { toSmoothCPath } from './lib/geometry/SmoothPath'
+import { toSmoothCPath, getSmoothSegments } from './lib/geometry/SmoothPath'
+import { buildLUT, accumulateLengths } from './lib/geometry/Bezier'
 
 // Nodes ARE the curve control points!
 const initialNodes: NodeModel[] = [
@@ -54,16 +55,15 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('ck_nodes', JSON.stringify(nodes)) } catch {} }, [nodes])
 
   if (isMobile) {
-    // Build smooth quadratic curve from node positions
+    // Build smooth curve from node positions with symmetric arms
     const nodePoints = nodes.map(n => nodePositions[n.id]);
     const curvePath = toSmoothCPath(nodePoints, 0.5);
     
-    // For slide mode calculations, still use cubic LUT
-    const curve: CurveState = {
-      controls: nodePoints,
-      tension: 0.5
-    };
-    const lut = buildParamLUT(curve);
+    // Build arc-length LUT for the ACTUAL smooth curve (for sliding)
+    const smoothSegments = getSmoothSegments(nodePoints, 0.5);
+    const lutBase = buildLUT(smoothSegments, 0.75);
+    const s = accumulateLengths(lutBase.pt);
+    const lut = { ...lutBase, s, length: s[s.length - 1], segments: smoothSegments };
     
     return (
       <div style={{ 
