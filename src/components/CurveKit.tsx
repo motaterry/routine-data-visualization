@@ -159,6 +159,7 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
 
     const { x, y } = s.pendingClientXY;
     const svgP = clientToSvg(x, y);
+    console.log('🎬 FRAME running for node:', s.id, 'svgP:', svgP);
     if (svgP) {
       // Always use curve-constrained movement for now (simpler)
       const tSec = timeAtPoint(lut, svgP);
@@ -167,8 +168,9 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
       
       const el = nodeRefs.current[s.id];
       if (el) {
-        el.style.transform = `translate(${pos.x - base.x}px, ${pos.y - base.y}px)`;
+        el.style.transform = `translate(${pos.x - base.x}px, ${pos.y - base.y}px) scale(1.2)`;
         el.style.willChange = 'transform';
+        el.style.opacity = '0.8';
         lastTimeById.current.set(s.id, tSec);
       }
 
@@ -188,6 +190,7 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
   const onMove = useCallback((e: PointerEvent) => {
     const s = drag.current;
     if (s.pointerId !== e.pointerId) return;
+    console.log('🚀 MOVE event for node:', s.id);
     s.pendingClientXY = { x: e.clientX, y: e.clientY };
     if (!s.raf) s.raf = requestAnimationFrame(frame);
   }, [frame]);
@@ -205,7 +208,10 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
         onNodeChange(s.id, tFinal);
       }
       const el = nodeRefs.current[s.id];
-      if (el) el.style.transform = ''; // clear delta CSS transform
+      if (el) {
+        el.style.transform = ''; // clear delta CSS transform
+        el.style.opacity = ''; // restore opacity
+      }
     }
 
     // cleanup listeners + touch-action
@@ -353,12 +359,19 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
 
   return (
     <div 
-      className={`w-full ${isMobile ? 'h-screen fixed inset-0 z-10' : 'h-full min-h-[50vh] max-h-[80vh]'} overflow-hidden`}
+      className={`w-full overflow-hidden`}
       style={{
         // Ensure proper mobile viewport handling
+        position: isMobile ? 'fixed' : 'relative',
+        top: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
+        right: isMobile ? 0 : undefined,
+        bottom: isMobile ? 0 : undefined,
+        width: isMobile ? '100vw' : '100%',
         height: isMobile ? '100vh' : undefined,
-        // Handle mobile browser UI (address bar, etc.) with dynamic viewport height
-        minHeight: isMobile ? '100dvh' : undefined,
+        minHeight: isMobile ? '100vh' : '50vh',
+        maxHeight: isMobile ? '100vh' : '80vh',
+        zIndex: isMobile ? 10 : undefined,
       }}
     >
       <svg
@@ -410,7 +423,11 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
               transform={`translate(${p.x}, ${p.y})`}
               style={{ transformBox: 'fill-box', transformOrigin: 'center', willChange: 'transform' }}
               onPointerDown={(e) => {
-                if (readOnly || mode !== 'view') return;
+                if (readOnly || mode !== 'view') {
+                  console.log('BLOCKED: readOnly =', readOnly, 'mode =', mode);
+                  return;
+                }
+                console.log('✅ POINTER DOWN on node:', n.id);
                 const s = drag.current;
                 s.id = n.id;
                 s.pointerId = e.pointerId;
@@ -436,10 +453,13 @@ export function CurveKit(props: CurveKitProps): React.ReactElement {
                 if (!s.raf) s.raf = requestAnimationFrame(frame);
               }}
             >
-              {/* Larger touch target for mobile */}
-              <circle r={isMobile ? 40 : NODE_R} className="fill-transparent" />
-              <circle r={NODE_R} className="fill-white stroke-current" strokeWidth={isMobile ? 3 : 2} />
-              <text y={isMobile ? 8 : 5} textAnchor="middle" className={`fill-current ${isMobile ? 'text-sm font-medium' : 'text-xs'}`}>{n.label}</text>
+              {/* Larger touch target for mobile - with visual feedback */}
+              <circle r={isMobile ? 40 : NODE_R} className="fill-transparent" style={{ cursor: 'grab' }} />
+              <circle r={NODE_R} className="fill-white stroke-current" strokeWidth={isMobile ? 3 : 2} style={{ 
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                cursor: 'grab'
+              }} />
+              <text y={isMobile ? 8 : 5} textAnchor="middle" className={`fill-current ${isMobile ? 'text-sm font-medium' : 'text-xs'}`} style={{ pointerEvents: 'none' }}>{n.label}</text>
             </g>
           );
         })}

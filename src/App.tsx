@@ -47,6 +47,11 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<'timeline' | 'list'>(() => (localStorage.getItem('ck_view') as any) || 'timeline')
   const [sculptEnabled] = useState<boolean>(() => {
+    // Force sculpt OFF on mobile
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      try { localStorage.setItem('ff_curve_sculpting', '0'); } catch {}
+      return false;
+    }
     try { return localStorage.getItem('ff_curve_sculpting') !== '0' } catch { return true }
   })
   const isMobile = useIsMobile()
@@ -80,7 +85,7 @@ export default function App() {
         <CurveKit
           curve={curve}
           nodes={nodes}
-          mode={sculptEnabled ? 'sculpt' : 'view'}
+          mode={isMobile ? 'view' : (sculptEnabled ? 'sculpt' : 'view')}
           onCurveChange={setCurve}
           onNodeChange={(id, t) => setNodes(ns => ns.map(n => n.id === id ? { ...n, time: t } : n))}
           onNodeTap={(id) => setSelectedId(id)}
