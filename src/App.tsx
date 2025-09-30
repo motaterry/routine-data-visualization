@@ -46,6 +46,7 @@ export default function App() {
   const [draggingNode, setDraggingNode] = React.useState<string | null>(null);
   const [slideMode, setSlideMode] = React.useState<string | null>(null);
   const [longPressTimer, setLongPressTimer] = React.useState<NodeJS.Timeout | null>(null);
+  const [slidePendingTime, setSlidePendingTime] = React.useState<number | null>(null);
   
   const isMobile = useIsMobile()
 
@@ -79,9 +80,24 @@ export default function App() {
           viewBox="0 0 400 800"
           style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
           onTouchStart={() => {
-            // Tap background to exit slide mode
-            if (slideMode) {
+            // Tap background to SAVE and exit slide mode
+            if (slideMode && slidePendingTime !== null) {
+              // Save the new time and recalculate position
+              const newY = 100 + (slidePendingTime / 86400) * 600;
+              const nodeIndex = nodes.findIndex(n => n.id === slideMode);
+              const newX = nodeIndex % 2 === 0 ? 150 : 250;
+              
+              setNodePositions(prev => ({
+                ...prev,
+                [slideMode]: { x: newX, y: newY }
+              }));
+              
+              setNodes(ns => ns.map(node => 
+                node.id === slideMode ? { ...node, time: slidePendingTime } : node
+              ));
+              
               setSlideMode(null);
+              setSlidePendingTime(null);
             }
           }}
         >
@@ -100,10 +116,12 @@ export default function App() {
             const isDragging = draggingNode === n.id;
             const isSliding = slideMode === n.id;
             
-            // If in slide mode, always show position on curve based on current time
+            // If in slide mode, show live position on curve
             let displayPos = pos;
+            let displayTime = n.time;
             if (isSliding) {
-              displayPos = pointAtTime(lut, n.time);
+              displayTime = slidePendingTime !== null ? slidePendingTime : n.time;
+              displayPos = pointAtTime(lut, displayTime);
             }
             
             return (
@@ -148,11 +166,9 @@ export default function App() {
                     const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
                     
                     if (isSliding) {
-                      // SLIDE MODE: constrained to curve, change time only
+                      // SLIDE MODE: constrained to curve, update pending time (not saved yet)
                       const newTime = timeAtPoint(lut, svgP);
-                      setNodes(ns => ns.map(node => 
-                        node.id === n.id ? { ...node, time: newTime } : node
-                      ));
+                      setSlidePendingTime(newTime);
                     } else {
                       // SCULPT MODE: free 2D movement, reshape curve
                       setNodePositions(prev => ({
@@ -171,12 +187,13 @@ export default function App() {
                     }
                     
                     if (draggingNode === n.id && !isSliding) {
-                      // Update time based on Y position when sculpting
+                      // Sculpt mode: Update time based on Y position immediately
                       const newTime = Math.max(0, Math.min(86400, ((pos.y - 100) / 600) * 86400));
                       setNodes(ns => ns.map(node => 
                         node.id === n.id ? { ...node, time: newTime } : node
                       ));
                     }
+                    // Note: In slide mode, don't save on release - wait for background tap
                     
                     setDraggingNode(null);
                   }}
