@@ -260,19 +260,61 @@ export default function App() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 12 }}>CurveKit Demo (Desktop)</h1>
-      <CurveKit
-        curve={{
-          controls: nodes.map(n => nodePositions[n.id] || { x: 200, y: 200 }),
-          tension: 0.5
-        }}
-        nodes={nodes}
-        mode="view"
-        onCurveChange={() => {}}
-        onNodeChange={(id, t) => setNodes(ns => ns.map(n => n.id === id ? { ...n, time: t } : n))}
-        onNodeTap={(id) => setSelectedId(id)}
-      />
+    <div style={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      padding: 24
+    }}>
+      <div style={{
+        maxWidth: 600,
+        background: 'white',
+        borderRadius: 16,
+        padding: 48,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>📱</div>
+        <h1 style={{ fontSize: 32, marginBottom: 16, color: '#1a202c' }}>
+          Serpentime
+        </h1>
+        <p style={{ fontSize: 18, color: '#4a5568', marginBottom: 24, lineHeight: 1.6 }}>
+          This experience is designed for <strong>mobile devices only</strong>.
+        </p>
+        <p style={{ fontSize: 16, color: '#718096', marginBottom: 32, lineHeight: 1.6 }}>
+          The serpentine timeline interaction with drag-to-sculpt and hold-to-slide 
+          is optimized for touch and portrait orientation.
+        </p>
+        <div style={{
+          background: '#f7fafc',
+          padding: 24,
+          borderRadius: 12,
+          border: '2px solid #e2e8f0'
+        }}>
+          <p style={{ fontSize: 14, color: '#2d3748', marginBottom: 12, fontWeight: 600 }}>
+            📲 To experience Serpentime:
+          </p>
+          <p style={{ fontSize: 14, color: '#4a5568', lineHeight: 1.8 }}>
+            1. Open this URL on your phone<br/>
+            2. Or resize your browser to &lt;768px width<br/>
+            3. Enjoy the serpentine timeline! 🌊
+          </p>
+        </div>
+        <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid #e2e8f0' }}>
+          <a href="https://github.com/motaterry/routine-data-visualization" 
+             style={{ 
+               color: '#667eea', 
+               textDecoration: 'none',
+               fontSize: 14,
+               fontWeight: 600
+             }}>
+            View on GitHub →
+          </a>
+        </div>
+      </div>
     </div>
   )
 }
